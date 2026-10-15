@@ -94,7 +94,7 @@ app.get("/api/audit-logs", (req, res) => {
   res.json(rows.map(mapAuditLog));
 });
 
-app.post("/api/requests", (req, res) => {
+app.post("/api/requests", async (req, res) => {
   const { description } = req.body;
 
   if (!description || !description.trim()) {
@@ -103,7 +103,7 @@ app.post("/api/requests", (req, res) => {
     });
   }
 
-  const analysis = analyzeRequest(description);
+  const analysis = await analyzeRequest(description);
 
   const status =
     analysis.confidence >= 85
