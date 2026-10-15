@@ -3,6 +3,8 @@ import "./App.css";
 
 function App() {
   const [requests, setRequests] = useState([]);
+  const [reviewRequests, setReviewRequests] = useState([]);
+
   const [stats, setStats] = useState({
     totalRequests: 0,
     autoProcessed: 0,
@@ -16,6 +18,7 @@ function App() {
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
+  const [reviewMessage, setReviewMessage] = useState("");
 
   const loadDashboardData = async () => {
     try {
@@ -38,8 +41,26 @@ function App() {
     }
   };
 
+  const loadReviewRequests = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/requests/review"
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to load review requests");
+      }
+
+      const data = await response.json();
+      setReviewRequests(data);
+    } catch (error) {
+      console.error("Review queue error:", error);
+    }
+  };
+
   useEffect(() => {
     loadDashboardData();
+    loadReviewRequests();
   }, []);
 
   const handleCreateRequest = async (event) => {
@@ -54,15 +75,18 @@ function App() {
       setIsSubmitting(true);
       setSubmitMessage("");
 
-      const response = await fetch("http://localhost:5000/api/requests", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          description,
-        }),
-      });
+      const response = await fetch(
+        "http://localhost:5000/api/requests",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            description,
+          }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to create request");
@@ -77,6 +101,7 @@ function App() {
       setDescription("");
 
       await loadDashboardData();
+      await loadReviewRequests();
 
       setTimeout(() => {
         setCurrentPage("dashboard");
@@ -87,6 +112,45 @@ function App() {
       setSubmitMessage("Could not create request.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleReviewDecision = async (requestId, decision) => {
+    try {
+      setReviewMessage("");
+
+      const response = await fetch(
+        `http://localhost:5000/api/requests/${requestId}/${decision}`,
+        {
+          method: "PATCH",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to update request");
+      }
+
+      const result = await response.json();
+
+      setReviewMessage(result.message);
+
+      await loadReviewRequests();
+      await loadDashboardData();
+    } catch (error) {
+      console.error("Review decision error:", error);
+      setReviewMessage("Could not update request.");
+    }
+  };
+
+  const openPage = async (page) => {
+    setCurrentPage(page);
+
+    if (page === "dashboard") {
+      await loadDashboardData();
+    }
+
+    if (page === "validation") {
+      await loadReviewRequests();
     }
   };
 
@@ -103,7 +167,7 @@ function App() {
             className={`nav-item ${
               currentPage === "dashboard" ? "active" : ""
             }`}
-            onClick={() => setCurrentPage("dashboard")}
+            onClick={() => openPage("dashboard")}
           >
             Dashboard
           </button>
@@ -112,12 +176,17 @@ function App() {
             className={`nav-item ${
               currentPage === "new-request" ? "active" : ""
             }`}
-            onClick={() => setCurrentPage("new-request")}
+            onClick={() => openPage("new-request")}
           >
             New Request
           </button>
 
-          <button className="nav-item">
+          <button
+            className={`nav-item ${
+              currentPage === "validation" ? "active" : ""
+            }`}
+            onClick={() => openPage("validation")}
+          >
             Validation Queue
           </button>
 
@@ -140,7 +209,7 @@ function App() {
 
               <button
                 className="primary-button"
-                onClick={() => setCurrentPage("new-request")}
+                onClick={() => openPage("new-request")}
               >
                 + New Request
               </button>
@@ -194,6 +263,7 @@ function App() {
                     <tr>
                       <th>ID</th>
                       <th>Type</th>
+                      <th>Priority</th>
                       <th>Confidence</th>
                       <th>Status</th>
                     </tr>
@@ -204,12 +274,15 @@ function App() {
                       <tr key={request.id}>
                         <td>#{request.id}</td>
                         <td>{request.type}</td>
+                        <td>{request.priority || "-"}</td>
                         <td>{request.confidence}%</td>
                         <td>
                           <span
                             className={`status ${
                               request.status === "Completed"
                                 ? "completed"
+                                : request.status === "Rejected"
+                                ? "rejected"
                                 : "review"
                             }`}
                           >
@@ -283,8 +356,8 @@ function App() {
                 />
 
                 <div className="form-help">
-                  FlowPilot will analyze the request, classify
-                  it and decide whether it can be processed
+                  FlowPilot will analyze the request, classify it
+                  and decide whether it can be processed
                   automatically or requires human validation.
                 </div>
 
@@ -298,9 +371,7 @@ function App() {
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() =>
-                      setCurrentPage("dashboard")
-                    }
+                    onClick={() => openPage("dashboard")}
                   >
                     Cancel
                   </button>
@@ -317,6 +388,118 @@ function App() {
                 </div>
               </form>
             </section>
+          </>
+        )}
+
+        {currentPage === "validation" && (
+          <>
+            <header className="page-header">
+              <div>
+                <h1>Validation Queue</h1>
+                <p>
+                  Review requests that could not be processed
+                  automatically.
+                </p>
+              </div>
+            </header>
+
+            {reviewMessage && (
+              <div className="submit-message review-feedback">
+                {reviewMessage}
+              </div>
+            )}
+
+            {reviewRequests.length === 0 ? (
+              <div className="empty-state">
+                <h2>No requests waiting for review</h2>
+                <p>
+                  All current requests have been processed.
+                </p>
+              </div>
+            ) : (
+              <div className="review-list">
+                {reviewRequests.map((request) => (
+                  <div
+                    className="review-card"
+                    key={request.id}
+                  >
+                    <div className="review-card-header">
+                      <div>
+                        <span className="request-id">
+                          Request #{request.id}
+                        </span>
+                        <h2>{request.type}</h2>
+                      </div>
+
+                      <span className="status review">
+                        Human Review
+                      </span>
+                    </div>
+
+                    {request.description && (
+                      <div className="review-section">
+                        <span className="review-label">
+                          Request
+                        </span>
+                        <p>{request.description}</p>
+                      </div>
+                    )}
+
+                    <div className="review-details">
+                      <div>
+                        <span>Priority</span>
+                        <strong>
+                          {request.priority || "Medium"}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>AI Confidence</span>
+                        <strong>
+                          {request.confidence}%
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="review-section">
+                      <span className="review-label">
+                        Recommended Action
+                      </span>
+                      <p>
+                        {request.recommendedAction ||
+                          "Manual review required"}
+                      </p>
+                    </div>
+
+                    <div className="review-actions">
+                      <button
+                        className="reject-button"
+                        onClick={() =>
+                          handleReviewDecision(
+                            request.id,
+                            "reject"
+                          )
+                        }
+                      >
+                        Reject
+                      </button>
+
+                      <button
+                        className="approve-button"
+                        onClick={() =>
+                          handleReviewDecision(
+                            request.id,
+                            "approve"
+                          )
+                        }
+                      >
+                        Approve
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </main>

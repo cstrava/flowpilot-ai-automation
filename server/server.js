@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
+const { analyzeRequest } = require("./services/aiService");
+
 const app = express();
 
 app.use(cors());
@@ -11,25 +13,33 @@ let requests = [
   {
     id: 124,
     type: "Refund",
+    priority: "Medium",
     confidence: 96,
+    recommendedAction: "Approve refund if invoice is valid",
     status: "Completed",
   },
   {
     id: 125,
     type: "Invoice",
+    priority: "Medium",
     confidence: 88,
+    recommendedAction: "Validate invoice details",
     status: "Completed",
   },
   {
     id: 126,
     type: "Complaint",
+    priority: "High",
     confidence: 61,
+    recommendedAction: "Escalate to customer support",
     status: "Human Review",
   },
   {
     id: 127,
     type: "Order",
+    priority: "Medium",
     confidence: 94,
+    recommendedAction: "Check order status",
     status: "Completed",
   },
 ];
@@ -44,6 +54,14 @@ app.get("/api/requests", (req, res) => {
   res.json(requests);
 });
 
+app.get("/api/requests/review", (req, res) => {
+  const reviewRequests = requests.filter(
+    (request) => request.status === "Human Review"
+  );
+
+  res.json(reviewRequests);
+});
+
 app.post("/api/requests", (req, res) => {
   const { description } = req.body;
 
@@ -53,24 +71,10 @@ app.post("/api/requests", (req, res) => {
     });
   }
 
-  const confidence = Math.floor(Math.random() * 41) + 60;
-
-  const lowerDescription = description.toLowerCase();
-
-  let type = "General";
-
-  if (lowerDescription.includes("refund")) {
-    type = "Refund";
-  } else if (lowerDescription.includes("invoice")) {
-    type = "Invoice";
-  } else if (lowerDescription.includes("complaint")) {
-    type = "Complaint";
-  } else if (lowerDescription.includes("order")) {
-    type = "Order";
-  }
+  const analysis = analyzeRequest(description);
 
   const status =
-    confidence >= 85 ? "Completed" : "Human Review";
+    analysis.confidence >= 85 ? "Completed" : "Human Review";
 
   const nextId =
     requests.length > 0
@@ -80,8 +84,10 @@ app.post("/api/requests", (req, res) => {
   const newRequest = {
     id: nextId,
     description,
-    type,
-    confidence,
+    type: analysis.category,
+    priority: analysis.priority,
+    confidence: analysis.confidence,
+    recommendedAction: analysis.recommendedAction,
     status,
   };
 
@@ -90,22 +96,84 @@ app.post("/api/requests", (req, res) => {
   res.status(201).json(newRequest);
 });
 
+app.patch("/api/requests/:id/approve", (req, res) => {
+  const requestId = Number(req.params.id);
+
+  const request = requests.find(
+    (item) => item.id === requestId
+  );
+
+  if (!request) {
+    return res.status(404).json({
+      message: "Request not found",
+    });
+  }
+
+  if (request.status !== "Human Review") {
+    return res.status(400).json({
+      message: "Request is not waiting for review",
+    });
+  }
+
+  request.status = "Completed";
+  request.reviewDecision = "Approved";
+
+  res.json({
+    message: "Request approved successfully",
+    request,
+  });
+});
+
+app.patch("/api/requests/:id/reject", (req, res) => {
+  const requestId = Number(req.params.id);
+
+  const request = requests.find(
+    (item) => item.id === requestId
+  );
+
+  if (!request) {
+    return res.status(404).json({
+      message: "Request not found",
+    });
+  }
+
+  if (request.status !== "Human Review") {
+    return res.status(400).json({
+      message: "Request is not waiting for review",
+    });
+  }
+
+  request.status = "Rejected";
+  request.reviewDecision = "Rejected";
+
+  res.json({
+    message: "Request rejected successfully",
+    request,
+  });
+});
+
 app.get("/api/stats", (req, res) => {
   const totalRequests = requests.length;
 
   const autoProcessed = requests.filter(
-    (request) => request.status === "Completed"
+    (request) =>
+      request.status === "Completed" &&
+      !request.reviewDecision
   ).length;
 
   const humanReview = requests.filter(
     (request) => request.status === "Human Review"
   ).length;
 
-  const completed = autoProcessed;
+  const completed = requests.filter(
+    (request) => request.status === "Completed"
+  ).length;
 
   const automationRate =
     totalRequests > 0
-      ? Number(((autoProcessed / totalRequests) * 100).toFixed(1))
+      ? Number(
+          ((autoProcessed / totalRequests) * 100).toFixed(1)
+        )
       : 0;
 
   const savedMinutes = autoProcessed * 5;
