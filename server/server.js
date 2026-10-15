@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
+const db = require("./db/database");
 const { analyzeRequest } = require("./services/aiService");
 
 const app = express();
@@ -9,73 +10,45 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-let requests = [
-  {
-    id: 124,
-    type: "Refund",
-    priority: "Medium",
-    confidence: 96,
-    recommendedAction: "Approve refund if invoice is valid",
-    status: "Completed",
-  },
-  {
-    id: 125,
-    type: "Invoice",
-    priority: "Medium",
-    confidence: 88,
-    recommendedAction: "Validate invoice details",
-    status: "Completed",
-  },
-  {
-    id: 126,
-    type: "Complaint",
-    priority: "High",
-    confidence: 61,
-    recommendedAction: "Escalate to customer support",
-    status: "Human Review",
-  },
-  {
-    id: 127,
-    type: "Order",
-    priority: "Medium",
-    confidence: 94,
-    recommendedAction: "Check order status",
-    status: "Completed",
-  },
-];
-
-let auditLogs = [
-  {
-    id: 1,
-    requestId: 124,
-    action: "Automatically completed",
-    details: "Refund request processed automatically",
-    timestamp: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    requestId: 126,
-    action: "Routed to human review",
-    details: "Complaint requires reviewer validation",
-    timestamp: new Date().toISOString(),
-  },
-];
-
 function addAuditLog(requestId, action, details = "") {
-  const nextAuditId =
-    auditLogs.length > 0
-      ? Math.max(...auditLogs.map((log) => log.id)) + 1
-      : 1;
+  const statement = db.prepare(`
+    INSERT INTO audit_logs (
+      request_id,
+      action,
+      details
+    )
+    VALUES (?, ?, ?)
+  `);
 
-  const newLog = {
-    id: nextAuditId,
+  statement.run(
     requestId,
     action,
-    details,
-    timestamp: new Date().toISOString(),
-  };
+    details
+  );
+}
 
-  auditLogs.unshift(newLog);
+function mapRequest(row) {
+  return {
+    id: row.id,
+    description: row.description,
+    type: row.type,
+    priority: row.priority,
+    confidence: row.confidence,
+    recommendedAction: row.recommended_action,
+    status: row.status,
+    reviewDecision: row.review_decision,
+    createdAt: row.created_at,
+  };
+}
+
+function mapAuditLog(row) {
+  return {
+    id: row.id,
+    requestId: row.request_id,
+    action: row.action,
+    details: row.details,
+    timestamp: row.timestamp,
+  };
 }
 
 app.get("/", (req, res) => {
@@ -85,19 +58,40 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/requests", (req, res) => {
-  res.json(requests);
+  const rows = db
+    .prepare(`
+      SELECT *
+      FROM requests
+      ORDER BY id DESC
+    `)
+    .all();
+
+  res.json(rows.map(mapRequest));
 });
 
 app.get("/api/requests/review", (req, res) => {
-  const reviewRequests = requests.filter(
-    (request) => request.status === "Human Review"
-  );
+  const rows = db
+    .prepare(`
+      SELECT *
+      FROM requests
+      WHERE status = ?
+      ORDER BY id DESC
+    `)
+    .all("Human Review");
 
-  res.json(reviewRequests);
+  res.json(rows.map(mapRequest));
 });
 
 app.get("/api/audit-logs", (req, res) => {
-  res.json(auditLogs);
+  const rows = db
+    .prepare(`
+      SELECT *
+      FROM audit_logs
+      ORDER BY id DESC
+    `)
+    .all();
+
+  res.json(rows.map(mapAuditLog));
 });
 
 app.post("/api/requests", (req, res) => {
@@ -112,150 +106,245 @@ app.post("/api/requests", (req, res) => {
   const analysis = analyzeRequest(description);
 
   const status =
-    analysis.confidence >= 85 ? "Completed" : "Human Review";
+    analysis.confidence >= 85
+      ? "Completed"
+      : "Human Review";
 
-  const nextId =
-    requests.length > 0
-      ? Math.max(...requests.map((request) => request.id)) + 1
-      : 1;
+  const insertRequest = db.prepare(`
+    INSERT INTO requests (
+      description,
+      type,
+      priority,
+      confidence,
+      recommended_action,
+      status
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
 
-  const newRequest = {
-    id: nextId,
-    description,
-    type: analysis.category,
-    priority: analysis.priority,
-    confidence: analysis.confidence,
-    recommendedAction: analysis.recommendedAction,
-    status,
-  };
+  const result = insertRequest.run(
+    description.trim(),
+    analysis.category,
+    analysis.priority,
+    analysis.confidence,
+    analysis.recommendedAction,
+    status
+  );
 
-  requests.unshift(newRequest);
+  const requestId = Number(result.lastInsertRowid);
 
   addAuditLog(
-    newRequest.id,
+    requestId,
     "Request created",
-    `Request received and classified as ${newRequest.type}`
+    `Request received and classified as ${analysis.category}`
   );
 
   addAuditLog(
-    newRequest.id,
+    requestId,
     "AI analysis completed",
-    `Confidence ${newRequest.confidence}% - Priority ${newRequest.priority}`
+    `Confidence ${analysis.confidence}% - Priority ${analysis.priority}`
   );
 
-  if (newRequest.status === "Human Review") {
+  if (status === "Human Review") {
     addAuditLog(
-      newRequest.id,
+      requestId,
       "Routed to human review",
-      newRequest.recommendedAction
+      analysis.recommendedAction
     );
   } else {
     addAuditLog(
-      newRequest.id,
+      requestId,
       "Automatically completed",
-      newRequest.recommendedAction
+      analysis.recommendedAction
     );
   }
 
-  res.status(201).json(newRequest);
+  const newRequest = db
+    .prepare(`
+      SELECT *
+      FROM requests
+      WHERE id = ?
+    `)
+    .get(requestId);
+
+  res.status(201).json(
+    mapRequest(newRequest)
+  );
 });
 
-app.patch("/api/requests/:id/approve", (req, res) => {
-  const requestId = Number(req.params.id);
+app.patch(
+  "/api/requests/:id/approve",
+  (req, res) => {
+    const requestId = Number(req.params.id);
 
-  const request = requests.find(
-    (item) => item.id === requestId
-  );
+    const request = db
+      .prepare(`
+        SELECT *
+        FROM requests
+        WHERE id = ?
+      `)
+      .get(requestId);
 
-  if (!request) {
-    return res.status(404).json({
-      message: "Request not found",
+    if (!request) {
+      return res.status(404).json({
+        message: "Request not found",
+      });
+    }
+
+    if (request.status !== "Human Review") {
+      return res.status(400).json({
+        message:
+          "Request is not waiting for review",
+      });
+    }
+
+    db.prepare(`
+      UPDATE requests
+      SET
+        status = ?,
+        review_decision = ?
+      WHERE id = ?
+    `).run(
+      "Completed",
+      "Approved",
+      requestId
+    );
+
+    addAuditLog(
+      requestId,
+      "Human review approved",
+      "Request approved by reviewer"
+    );
+
+    const updatedRequest = db
+      .prepare(`
+        SELECT *
+        FROM requests
+        WHERE id = ?
+      `)
+      .get(requestId);
+
+    res.json({
+      message:
+        "Request approved successfully",
+      request: mapRequest(updatedRequest),
     });
   }
+);
 
-  if (request.status !== "Human Review") {
-    return res.status(400).json({
-      message: "Request is not waiting for review",
+app.patch(
+  "/api/requests/:id/reject",
+  (req, res) => {
+    const requestId = Number(req.params.id);
+
+    const request = db
+      .prepare(`
+        SELECT *
+        FROM requests
+        WHERE id = ?
+      `)
+      .get(requestId);
+
+    if (!request) {
+      return res.status(404).json({
+        message: "Request not found",
+      });
+    }
+
+    if (request.status !== "Human Review") {
+      return res.status(400).json({
+        message:
+          "Request is not waiting for review",
+      });
+    }
+
+    db.prepare(`
+      UPDATE requests
+      SET
+        status = ?,
+        review_decision = ?
+      WHERE id = ?
+    `).run(
+      "Rejected",
+      "Rejected",
+      requestId
+    );
+
+    addAuditLog(
+      requestId,
+      "Human review rejected",
+      "Request rejected by reviewer"
+    );
+
+    const updatedRequest = db
+      .prepare(`
+        SELECT *
+        FROM requests
+        WHERE id = ?
+      `)
+      .get(requestId);
+
+    res.json({
+      message:
+        "Request rejected successfully",
+      request: mapRequest(updatedRequest),
     });
   }
-
-  request.status = "Completed";
-  request.reviewDecision = "Approved";
-
-  addAuditLog(
-    request.id,
-    "Human review approved",
-    "Request approved by reviewer"
-  );
-
-  res.json({
-    message: "Request approved successfully",
-    request,
-  });
-});
-
-app.patch("/api/requests/:id/reject", (req, res) => {
-  const requestId = Number(req.params.id);
-
-  const request = requests.find(
-    (item) => item.id === requestId
-  );
-
-  if (!request) {
-    return res.status(404).json({
-      message: "Request not found",
-    });
-  }
-
-  if (request.status !== "Human Review") {
-    return res.status(400).json({
-      message: "Request is not waiting for review",
-    });
-  }
-
-  request.status = "Rejected";
-  request.reviewDecision = "Rejected";
-
-  addAuditLog(
-    request.id,
-    "Human review rejected",
-    "Request rejected by reviewer"
-  );
-
-  res.json({
-    message: "Request rejected successfully",
-    request,
-  });
-});
+);
 
 app.get("/api/stats", (req, res) => {
-  const totalRequests = requests.length;
+  const totalRequests = db
+    .prepare(`
+      SELECT COUNT(*) AS count
+      FROM requests
+    `)
+    .get().count;
 
-  const autoProcessed = requests.filter(
-    (request) =>
-      request.status === "Completed" &&
-      !request.reviewDecision
-  ).length;
+  const autoProcessed = db
+    .prepare(`
+      SELECT COUNT(*) AS count
+      FROM requests
+      WHERE
+        status = 'Completed'
+        AND review_decision IS NULL
+    `)
+    .get().count;
 
-  const humanReview = requests.filter(
-    (request) => request.status === "Human Review"
-  ).length;
+  const humanReview = db
+    .prepare(`
+      SELECT COUNT(*) AS count
+      FROM requests
+      WHERE status = 'Human Review'
+    `)
+    .get().count;
 
-  const completed = requests.filter(
-    (request) => request.status === "Completed"
-  ).length;
+  const completed = db
+    .prepare(`
+      SELECT COUNT(*) AS count
+      FROM requests
+      WHERE status = 'Completed'
+    `)
+    .get().count;
 
   const automationRate =
     totalRequests > 0
       ? Number(
-          ((autoProcessed / totalRequests) * 100).toFixed(1)
+          (
+            (autoProcessed / totalRequests) *
+            100
+          ).toFixed(1)
         )
       : 0;
 
-  const savedMinutes = autoProcessed * 5;
+  const savedMinutes =
+    autoProcessed * 5;
 
-  const savedHours = Math.floor(savedMinutes / 60);
-  const remainingMinutes = savedMinutes % 60;
+  const savedHours = Math.floor(
+    savedMinutes / 60
+  );
+
+  const remainingMinutes =
+    savedMinutes % 60;
 
   res.json({
     totalRequests,
@@ -263,12 +352,16 @@ app.get("/api/stats", (req, res) => {
     humanReview,
     completed,
     automationRate,
-    estimatedTimeSaved: `${savedHours}h ${remainingMinutes}m`,
+    estimatedTimeSaved:
+      `${savedHours}h ${remainingMinutes}m`,
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT =
+  process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`FlowPilot server running on port ${PORT}`);
+  console.log(
+    `FlowPilot server running on port ${PORT}`
+  );
 });
