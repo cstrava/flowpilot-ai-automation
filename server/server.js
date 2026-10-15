@@ -7,7 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const requests = [
+let requests = [
   {
     id: 124,
     type: "Refund",
@@ -44,14 +44,82 @@ app.get("/api/requests", (req, res) => {
   res.json(requests);
 });
 
+app.post("/api/requests", (req, res) => {
+  const { description } = req.body;
+
+  if (!description || !description.trim()) {
+    return res.status(400).json({
+      message: "Description is required",
+    });
+  }
+
+  const confidence = Math.floor(Math.random() * 41) + 60;
+
+  const lowerDescription = description.toLowerCase();
+
+  let type = "General";
+
+  if (lowerDescription.includes("refund")) {
+    type = "Refund";
+  } else if (lowerDescription.includes("invoice")) {
+    type = "Invoice";
+  } else if (lowerDescription.includes("complaint")) {
+    type = "Complaint";
+  } else if (lowerDescription.includes("order")) {
+    type = "Order";
+  }
+
+  const status =
+    confidence >= 85 ? "Completed" : "Human Review";
+
+  const nextId =
+    requests.length > 0
+      ? Math.max(...requests.map((request) => request.id)) + 1
+      : 1;
+
+  const newRequest = {
+    id: nextId,
+    description,
+    type,
+    confidence,
+    status,
+  };
+
+  requests.unshift(newRequest);
+
+  res.status(201).json(newRequest);
+});
+
 app.get("/api/stats", (req, res) => {
+  const totalRequests = requests.length;
+
+  const autoProcessed = requests.filter(
+    (request) => request.status === "Completed"
+  ).length;
+
+  const humanReview = requests.filter(
+    (request) => request.status === "Human Review"
+  ).length;
+
+  const completed = autoProcessed;
+
+  const automationRate =
+    totalRequests > 0
+      ? Number(((autoProcessed / totalRequests) * 100).toFixed(1))
+      : 0;
+
+  const savedMinutes = autoProcessed * 5;
+
+  const savedHours = Math.floor(savedMinutes / 60);
+  const remainingMinutes = savedMinutes % 60;
+
   res.json({
-    totalRequests: 128,
-    autoProcessed: 91,
-    humanReview: 23,
-    completed: 114,
-    automationRate: 71.1,
-    estimatedTimeSaved: "7h 35m",
+    totalRequests,
+    autoProcessed,
+    humanReview,
+    completed,
+    automationRate,
+    estimatedTimeSaved: `${savedHours}h ${remainingMinutes}m`,
   });
 });
 

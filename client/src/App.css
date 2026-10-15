@@ -240,3 +240,64 @@ td {
     grid-template-columns: 1fr;
   }
 }
+
+.request-form-card {
+  max-width: 800px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 28px;
+}
+
+.request-form-card form {
+  display: flex;
+  flex-direction: column;
+}
+
+.request-form-card label {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.request-form-card textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.request-form-card textarea:focus {
+  border-color: #111827;
+}
+
+.form-help {
+  margin-top: 10px;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.submit-message {
+  margin-top: 18px;
+  padding: 12px 14px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  color: #374151;
+  font-size: 14px;
+}
+
+.primary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
