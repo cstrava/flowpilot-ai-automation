@@ -4,6 +4,7 @@ import "./App.css";
 function App() {
   const [requests, setRequests] = useState([]);
   const [reviewRequests, setReviewRequests] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
 
   const [stats, setStats] = useState({
     totalRequests: 0,
@@ -58,9 +59,27 @@ function App() {
     }
   };
 
+  const loadAuditLogs = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/audit-logs"
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to load audit logs");
+      }
+
+      const data = await response.json();
+      setAuditLogs(data);
+    } catch (error) {
+      console.error("Audit log error:", error);
+    }
+  };
+
   useEffect(() => {
     loadDashboardData();
     loadReviewRequests();
+    loadAuditLogs();
   }, []);
 
   const handleCreateRequest = async (event) => {
@@ -102,6 +121,7 @@ function App() {
 
       await loadDashboardData();
       await loadReviewRequests();
+      await loadAuditLogs();
 
       setTimeout(() => {
         setCurrentPage("dashboard");
@@ -136,6 +156,7 @@ function App() {
 
       await loadReviewRequests();
       await loadDashboardData();
+      await loadAuditLogs();
     } catch (error) {
       console.error("Review decision error:", error);
       setReviewMessage("Could not update request.");
@@ -152,6 +173,14 @@ function App() {
     if (page === "validation") {
       await loadReviewRequests();
     }
+
+    if (page === "audit") {
+      await loadAuditLogs();
+    }
+  };
+
+  const formatTimestamp = (timestamp) => {
+    return new Date(timestamp).toLocaleString();
   };
 
   return (
@@ -190,7 +219,12 @@ function App() {
             Validation Queue
           </button>
 
-          <button className="nav-item">
+          <button
+            className={`nav-item ${
+              currentPage === "audit" ? "active" : ""
+            }`}
+            onClick={() => openPage("audit")}
+          >
             Audit Log
           </button>
         </nav>
@@ -252,10 +286,6 @@ function App() {
                       Latest requests processed by FlowPilot.
                     </p>
                   </div>
-
-                  <button className="secondary-button">
-                    View all
-                  </button>
                 </div>
 
                 <table>
@@ -500,6 +530,57 @@ function App() {
                 ))}
               </div>
             )}
+          </>
+        )}
+
+        {currentPage === "audit" && (
+          <>
+            <header className="page-header">
+              <div>
+                <h1>Audit Log</h1>
+                <p>
+                  Complete history of automated and human
+                  decisions.
+                </p>
+              </div>
+            </header>
+
+            <section className="audit-card">
+              {auditLogs.length === 0 ? (
+                <div className="empty-state">
+                  <h2>No audit events yet</h2>
+                  <p>
+                    Audit events will appear here as requests are
+                    processed.
+                  </p>
+                </div>
+              ) : (
+                <div className="audit-list">
+                  {auditLogs.map((log) => (
+                    <div className="audit-item" key={log.id}>
+                      <div className="audit-marker"></div>
+
+                      <div className="audit-content">
+                        <div className="audit-header">
+                          <div>
+                            <span className="request-id">
+                              Request #{log.requestId}
+                            </span>
+                            <h3>{log.action}</h3>
+                          </div>
+
+                          <span className="audit-time">
+                            {formatTimestamp(log.timestamp)}
+                          </span>
+                        </div>
+
+                        <p>{log.details}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </>
         )}
       </main>

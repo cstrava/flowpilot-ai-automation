@@ -44,6 +44,40 @@ let requests = [
   },
 ];
 
+let auditLogs = [
+  {
+    id: 1,
+    requestId: 124,
+    action: "Automatically completed",
+    details: "Refund request processed automatically",
+    timestamp: new Date().toISOString(),
+  },
+  {
+    id: 2,
+    requestId: 126,
+    action: "Routed to human review",
+    details: "Complaint requires reviewer validation",
+    timestamp: new Date().toISOString(),
+  },
+];
+
+function addAuditLog(requestId, action, details = "") {
+  const nextAuditId =
+    auditLogs.length > 0
+      ? Math.max(...auditLogs.map((log) => log.id)) + 1
+      : 1;
+
+  const newLog = {
+    id: nextAuditId,
+    requestId,
+    action,
+    details,
+    timestamp: new Date().toISOString(),
+  };
+
+  auditLogs.unshift(newLog);
+}
+
 app.get("/", (req, res) => {
   res.json({
     message: "FlowPilot API is running",
@@ -60,6 +94,10 @@ app.get("/api/requests/review", (req, res) => {
   );
 
   res.json(reviewRequests);
+});
+
+app.get("/api/audit-logs", (req, res) => {
+  res.json(auditLogs);
 });
 
 app.post("/api/requests", (req, res) => {
@@ -93,6 +131,32 @@ app.post("/api/requests", (req, res) => {
 
   requests.unshift(newRequest);
 
+  addAuditLog(
+    newRequest.id,
+    "Request created",
+    `Request received and classified as ${newRequest.type}`
+  );
+
+  addAuditLog(
+    newRequest.id,
+    "AI analysis completed",
+    `Confidence ${newRequest.confidence}% - Priority ${newRequest.priority}`
+  );
+
+  if (newRequest.status === "Human Review") {
+    addAuditLog(
+      newRequest.id,
+      "Routed to human review",
+      newRequest.recommendedAction
+    );
+  } else {
+    addAuditLog(
+      newRequest.id,
+      "Automatically completed",
+      newRequest.recommendedAction
+    );
+  }
+
   res.status(201).json(newRequest);
 });
 
@@ -117,6 +181,12 @@ app.patch("/api/requests/:id/approve", (req, res) => {
 
   request.status = "Completed";
   request.reviewDecision = "Approved";
+
+  addAuditLog(
+    request.id,
+    "Human review approved",
+    "Request approved by reviewer"
+  );
 
   res.json({
     message: "Request approved successfully",
@@ -145,6 +215,12 @@ app.patch("/api/requests/:id/reject", (req, res) => {
 
   request.status = "Rejected";
   request.reviewDecision = "Rejected";
+
+  addAuditLog(
+    request.id,
+    "Human review rejected",
+    "Request rejected by reviewer"
+  );
 
   res.json({
     message: "Request rejected successfully",

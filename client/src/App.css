@@ -429,3 +429,72 @@ td {
   max-width: 900px;
   margin-bottom: 20px;
 }
+
+.audit-card {
+  max-width: 1000px;
+}
+
+.audit-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.audit-item {
+  display: flex;
+  gap: 18px;
+  position: relative;
+  padding-bottom: 28px;
+}
+
+.audit-item:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 18px;
+  bottom: 0;
+  width: 2px;
+  background: #e5e7eb;
+}
+
+.audit-marker {
+  width: 16px;
+  height: 16px;
+  background: #111827;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 6px;
+  position: relative;
+  z-index: 1;
+}
+
+.audit-content {
+  flex: 1;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.audit-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.audit-header h3 {
+  margin: 4px 0 0;
+  font-size: 17px;
+}
+
+.audit-time {
+  color: #6b7280;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.audit-content p {
+  margin: 12px 0 0;
+  color: #6b7280;
+  line-height: 1.5;
+}
