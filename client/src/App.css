@@ -833,3 +833,23 @@ td {
     width: 100%;
   }
 }
+
+.ai-provider-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 10px;
+  padding: 7px 11px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.ai-provider-badge strong {
+  color: #111827;
+}
+
+.ai-provider-badge span {
+  color: #6b7280;
+}

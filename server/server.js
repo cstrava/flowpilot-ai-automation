@@ -174,9 +174,13 @@ app.post("/api/requests", async (req, res) => {
     `)
     .get(requestId);
 
-  res.status(201).json(
-    mapRequest(newRequest)
-  );
+  res.status(201).json({
+    ...mapRequest(newRequest),
+    aiProvider: analysis.provider || "unknown",
+    aiModel:
+      process.env.ANTHROPIC_MODEL ||
+      "claude-sonnet-5-5",
+  });
 });
 
 app.patch(

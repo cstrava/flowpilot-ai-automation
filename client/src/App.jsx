@@ -586,6 +586,26 @@ function App() {
                       AI ANALYSIS COMPLETE
                     </span>
 
+                    <div className="ai-provider-badge">
+                      {analysisResult.aiProvider === "claude" ? (
+                        <>
+                          Analyzed by <strong>Claude</strong>
+
+                          {analysisResult.aiModel && (
+                            <span>
+                              {" "}
+                              · {analysisResult.aiModel}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          Analyzed by{" "}
+                          <strong>Local Fallback</strong>
+                        </>
+                      )}
+                    </div>
+
                     <h2>
                       Request #{analysisResult.id}
                     </h2>
@@ -677,6 +697,7 @@ function App() {
                       <strong>
                         Automatically processed
                       </strong>
+
                       <p>
                         Confidence met the automation threshold, so
                         no human intervention is required.
@@ -687,6 +708,7 @@ function App() {
                       <strong>
                         Human review required
                       </strong>
+
                       <p>
                         Confidence was below the automation
                         threshold. The request has been added to
@@ -730,6 +752,7 @@ function App() {
             <header className="page-header">
               <div>
                 <h1>Validation Queue</h1>
+
                 <p>
                   Review requests that could not be processed
                   automatically.
@@ -746,6 +769,7 @@ function App() {
             {reviewRequests.length === 0 ? (
               <div className="empty-state">
                 <h2>No requests waiting for review</h2>
+
                 <p>
                   All current requests have been processed.
                 </p>
@@ -946,6 +970,7 @@ function App() {
             <div className="details-grid">
               <div className="detail-box">
                 <span>Category</span>
+
                 <strong>
                   {selectedRequest.type}
                 </strong>
@@ -953,6 +978,7 @@ function App() {
 
               <div className="detail-box">
                 <span>Priority</span>
+
                 <strong>
                   {selectedRequest.priority || "-"}
                 </strong>
@@ -960,6 +986,7 @@ function App() {
 
               <div className="detail-box">
                 <span>AI Confidence</span>
+
                 <strong>
                   {selectedRequest.confidence}%
                 </strong>
@@ -967,6 +994,7 @@ function App() {
 
               <div className="detail-box">
                 <span>Status</span>
+
                 <strong>
                   {selectedRequest.status}
                 </strong>
