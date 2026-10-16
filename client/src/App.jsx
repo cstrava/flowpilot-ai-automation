@@ -32,8 +32,8 @@ function App() {
   const loadDashboardData = async () => {
     try {
       const [requestsResponse, statsResponse] = await Promise.all([
-        fetch("http://localhost:5000/api/requests"),
-        fetch("http://localhost:5000/api/stats"),
+        fetch("/api/requests"),
+        fetch("/api/stats"),
       ]);
 
       if (!requestsResponse.ok || !statsResponse.ok) {
@@ -52,9 +52,7 @@ function App() {
 
   const loadReviewRequests = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/requests/review"
-      );
+      const response = await fetch("/api/requests/review");
 
       if (!response.ok) {
         throw new Error("Failed to load review requests");
@@ -69,9 +67,7 @@ function App() {
 
   const loadAuditLogs = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/audit-logs"
-      );
+      const response = await fetch("/api/audit-logs");
 
       if (!response.ok) {
         throw new Error("Failed to load audit logs");
@@ -103,18 +99,15 @@ function App() {
       setSubmitMessage("");
       setAnalysisResult(null);
 
-      const response = await fetch(
-        "http://localhost:5000/api/requests",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            description,
-          }),
-        }
-      );
+      const response = await fetch("/api/requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          description,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error("Failed to create request");
@@ -141,7 +134,7 @@ function App() {
       setReviewMessage("");
 
       const response = await fetch(
-        `http://localhost:5000/api/requests/${requestId}/${decision}`,
+        `/api/requests/${requestId}/${decision}`,
         {
           method: "PATCH",
         }

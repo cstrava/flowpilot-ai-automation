@@ -2,21 +2,30 @@ services:
   backend:
     build:
       context: ./server
+
     container_name: flowpilot-backend
-    ports:
-      - "5000:5000"
+
     env_file:
       - ./server/.env
+
     volumes:
       - ./server/data:/app/data
+
+    expose:
+      - "5000"
+
     restart: unless-stopped
 
   frontend:
     build:
       context: ./client
+
     container_name: flowpilot-frontend
+
     ports:
-      - "5173:5173"
+      - "80:80"
+
     depends_on:
       - backend
+
     restart: unless-stopped

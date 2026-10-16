@@ -57,6 +57,13 @@ app.get("/", (req, res) => {
   });
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "flowpilot-api",
+  });
+});
+
 app.get("/api/requests", (req, res) => {
   const rows = db
     .prepare(`
