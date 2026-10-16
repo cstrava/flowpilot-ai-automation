@@ -5,6 +5,7 @@ function App() {
   const [requests, setRequests] = useState([]);
   const [reviewRequests, setReviewRequests] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
   const [stats, setStats] = useState({
     totalRequests: 0,
@@ -301,7 +302,9 @@ function App() {
 
                   <tbody>
                     {requests.map((request) => (
-                      <tr key={request.id}>
+                      <tr key={request.id}
+                          className="clickable-row"
+                          onClick={() => setSelectedRequest(request)}>
                         <td>#{request.id}</td>
                         <td>{request.type}</td>
                         <td>{request.priority || "-"}</td>
@@ -584,6 +587,93 @@ function App() {
           </>
         )}
       </main>
+      {selectedRequest && (
+  <div
+    className="modal-overlay"
+    onClick={() => setSelectedRequest(null)}
+  >
+    <div
+      className="request-modal"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="modal-header">
+        <div>
+          <span className="request-id">
+            Request #{selectedRequest.id}
+          </span>
+          <h2>Request Details</h2>
+        </div>
+
+        <button
+          className="close-button"
+          onClick={() => setSelectedRequest(null)}
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="detail-section">
+        <span className="detail-label">Description</span>
+        <p>
+          {selectedRequest.description ||
+            "No description available"}
+        </p>
+      </div>
+
+      <div className="details-grid">
+        <div className="detail-box">
+          <span>Category</span>
+          <strong>{selectedRequest.type}</strong>
+        </div>
+
+        <div className="detail-box">
+          <span>Priority</span>
+          <strong>{selectedRequest.priority || "-"}</strong>
+        </div>
+
+        <div className="detail-box">
+          <span>AI Confidence</span>
+          <strong>{selectedRequest.confidence}%</strong>
+        </div>
+
+        <div className="detail-box">
+          <span>Status</span>
+          <strong>{selectedRequest.status}</strong>
+        </div>
+      </div>
+
+      <div className="detail-section">
+        <span className="detail-label">
+          Recommended Action
+        </span>
+        <p>
+          {selectedRequest.recommendedAction ||
+            "No recommended action"}
+        </p>
+      </div>
+
+      {selectedRequest.reviewDecision && (
+        <div className="detail-section">
+          <span className="detail-label">
+            Review Decision
+          </span>
+          <p>{selectedRequest.reviewDecision}</p>
+        </div>
+      )}
+
+      <div className="detail-section">
+        <span className="detail-label">Created At</span>
+        <p>
+          {selectedRequest.createdAt
+            ? new Date(
+                selectedRequest.createdAt
+              ).toLocaleString()
+            : "-"}
+        </p>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
