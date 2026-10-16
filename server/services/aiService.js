@@ -62,10 +62,9 @@ async function analyzeRequest(description) {
     const response = await anthropic.messages.create({
       model:
         process.env.ANTHROPIC_MODEL ||
-        "claude-sonnet-4-5",
+        "claude-sonnet-5-5",
 
       max_tokens: 300,
-      temperature: 0,
 
       system: `
 You are the AI classification component of FlowPilot,
