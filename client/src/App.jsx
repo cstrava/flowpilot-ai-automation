@@ -7,6 +7,11 @@ function App() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [priorityFilter, setPriorityFilter] = useState("All");
+  const [typeFilter, setTypeFilter] = useState("All");
+
   const [stats, setStats] = useState({
     totalRequests: 0,
     autoProcessed: 0,
@@ -184,6 +189,58 @@ function App() {
     return new Date(timestamp).toLocaleString();
   };
 
+  const filteredRequests = requests.filter((request) => {
+    const search = searchTerm.trim().toLowerCase();
+
+    const matchesSearch =
+      search === "" ||
+      String(request.id).toLowerCase().includes(search) ||
+      (request.description || "").toLowerCase().includes(search) ||
+      (request.type || "").toLowerCase().includes(search) ||
+      (request.priority || "").toLowerCase().includes(search) ||
+      (request.status || "").toLowerCase().includes(search);
+
+    const matchesStatus =
+      statusFilter === "All" ||
+      request.status === statusFilter;
+
+    const matchesPriority =
+      priorityFilter === "All" ||
+      request.priority === priorityFilter;
+
+    const matchesType =
+      typeFilter === "All" ||
+      request.type === typeFilter;
+
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesPriority &&
+      matchesType
+    );
+  });
+
+  const requestTypes = [
+    ...new Set(
+      requests
+        .map((request) => request.type)
+        .filter(Boolean)
+    ),
+  ].sort();
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("All");
+    setPriorityFilter("All");
+    setTypeFilter("All");
+  };
+
+  const filtersActive =
+    searchTerm !== "" ||
+    statusFilter !== "All" ||
+    priorityFilter !== "All" ||
+    typeFilter !== "All";
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -284,48 +341,153 @@ function App() {
                   <div>
                     <h2>Recent Requests</h2>
                     <p>
-                      Latest requests processed by FlowPilot.
+                      Search, filter and inspect requests processed
+                      by FlowPilot.
                     </p>
                   </div>
+
+                  <span className="results-count">
+                    {filteredRequests.length} results
+                  </span>
                 </div>
 
-                <table>
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Type</th>
-                      <th>Priority</th>
-                      <th>Confidence</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
+                <div className="request-filters">
+                  <div className="search-wrapper">
+                    <input
+                      type="text"
+                      className="search-input"
+                      placeholder="Search requests..."
+                      value={searchTerm}
+                      onChange={(event) =>
+                        setSearchTerm(event.target.value)
+                      }
+                    />
+                  </div>
 
-                  <tbody>
-                    {requests.map((request) => (
-                      <tr key={request.id}
-                          className="clickable-row"
-                          onClick={() => setSelectedRequest(request)}>
-                        <td>#{request.id}</td>
-                        <td>{request.type}</td>
-                        <td>{request.priority || "-"}</td>
-                        <td>{request.confidence}%</td>
-                        <td>
-                          <span
-                            className={`status ${
-                              request.status === "Completed"
-                                ? "completed"
-                                : request.status === "Rejected"
-                                ? "rejected"
-                                : "review"
-                            }`}
-                          >
-                            {request.status}
-                          </span>
-                        </td>
-                      </tr>
+                  <select
+                    className="filter-select"
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(event.target.value)
+                    }
+                  >
+                    <option value="All">All statuses</option>
+                    <option value="Completed">
+                      Completed
+                    </option>
+                    <option value="Human Review">
+                      Human Review
+                    </option>
+                    <option value="Rejected">
+                      Rejected
+                    </option>
+                  </select>
+
+                  <select
+                    className="filter-select"
+                    value={priorityFilter}
+                    onChange={(event) =>
+                      setPriorityFilter(event.target.value)
+                    }
+                  >
+                    <option value="All">
+                      All priorities
+                    </option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+
+                  <select
+                    className="filter-select"
+                    value={typeFilter}
+                    onChange={(event) =>
+                      setTypeFilter(event.target.value)
+                    }
+                  >
+                    <option value="All">All types</option>
+
+                    {requestTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
+                  </select>
+
+                  {filtersActive && (
+                    <button
+                      className="clear-filters-button"
+                      onClick={clearFilters}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <div className="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Type</th>
+                        <th>Priority</th>
+                        <th>Confidence</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {filteredRequests.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan="5"
+                            className="no-results"
+                          >
+                            No requests match your filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredRequests.map((request) => (
+                          <tr
+                            key={request.id}
+                            className="clickable-row"
+                            onClick={() =>
+                              setSelectedRequest(request)
+                            }
+                          >
+                            <td>#{request.id}</td>
+
+                            <td>{request.type}</td>
+
+                            <td>
+                              {request.priority || "-"}
+                            </td>
+
+                            <td>
+                              {request.confidence}%
+                            </td>
+
+                            <td>
+                              <span
+                                className={`status ${
+                                  request.status ===
+                                  "Completed"
+                                    ? "completed"
+                                    : request.status ===
+                                      "Rejected"
+                                    ? "rejected"
+                                    : "review"
+                                }`}
+                              >
+                                {request.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <div className="automation-card">
@@ -461,6 +623,7 @@ function App() {
                         <span className="request-id">
                           Request #{request.id}
                         </span>
+
                         <h2>{request.type}</h2>
                       </div>
 
@@ -474,6 +637,7 @@ function App() {
                         <span className="review-label">
                           Request
                         </span>
+
                         <p>{request.description}</p>
                       </div>
                     )}
@@ -481,6 +645,7 @@ function App() {
                     <div className="review-details">
                       <div>
                         <span>Priority</span>
+
                         <strong>
                           {request.priority || "Medium"}
                         </strong>
@@ -488,6 +653,7 @@ function App() {
 
                       <div>
                         <span>AI Confidence</span>
+
                         <strong>
                           {request.confidence}%
                         </strong>
@@ -498,6 +664,7 @@ function App() {
                       <span className="review-label">
                         Recommended Action
                       </span>
+
                       <p>
                         {request.recommendedAction ||
                           "Manual review required"}
@@ -541,6 +708,7 @@ function App() {
             <header className="page-header">
               <div>
                 <h1>Audit Log</h1>
+
                 <p>
                   Complete history of automated and human
                   decisions.
@@ -552,6 +720,7 @@ function App() {
               {auditLogs.length === 0 ? (
                 <div className="empty-state">
                   <h2>No audit events yet</h2>
+
                   <p>
                     Audit events will appear here as requests are
                     processed.
@@ -560,7 +729,10 @@ function App() {
               ) : (
                 <div className="audit-list">
                   {auditLogs.map((log) => (
-                    <div className="audit-item" key={log.id}>
+                    <div
+                      className="audit-item"
+                      key={log.id}
+                    >
                       <div className="audit-marker"></div>
 
                       <div className="audit-content">
@@ -569,11 +741,14 @@ function App() {
                             <span className="request-id">
                               Request #{log.requestId}
                             </span>
+
                             <h3>{log.action}</h3>
                           </div>
 
                           <span className="audit-time">
-                            {formatTimestamp(log.timestamp)}
+                            {formatTimestamp(
+                              log.timestamp
+                            )}
                           </span>
                         </div>
 
@@ -587,93 +762,117 @@ function App() {
           </>
         )}
       </main>
-      {selectedRequest && (
-  <div
-    className="modal-overlay"
-    onClick={() => setSelectedRequest(null)}
-  >
-    <div
-      className="request-modal"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <div className="modal-header">
-        <div>
-          <span className="request-id">
-            Request #{selectedRequest.id}
-          </span>
-          <h2>Request Details</h2>
-        </div>
 
-        <button
-          className="close-button"
+      {selectedRequest && (
+        <div
+          className="modal-overlay"
           onClick={() => setSelectedRequest(null)}
         >
-          ×
-        </button>
-      </div>
+          <div
+            className="request-modal"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <div className="modal-header">
+              <div>
+                <span className="request-id">
+                  Request #{selectedRequest.id}
+                </span>
 
-      <div className="detail-section">
-        <span className="detail-label">Description</span>
-        <p>
-          {selectedRequest.description ||
-            "No description available"}
-        </p>
-      </div>
+                <h2>Request Details</h2>
+              </div>
 
-      <div className="details-grid">
-        <div className="detail-box">
-          <span>Category</span>
-          <strong>{selectedRequest.type}</strong>
-        </div>
+              <button
+                className="close-button"
+                onClick={() =>
+                  setSelectedRequest(null)
+                }
+              >
+                ×
+              </button>
+            </div>
 
-        <div className="detail-box">
-          <span>Priority</span>
-          <strong>{selectedRequest.priority || "-"}</strong>
-        </div>
+            <div className="detail-section">
+              <span className="detail-label">
+                Description
+              </span>
 
-        <div className="detail-box">
-          <span>AI Confidence</span>
-          <strong>{selectedRequest.confidence}%</strong>
-        </div>
+              <p>
+                {selectedRequest.description ||
+                  "No description available"}
+              </p>
+            </div>
 
-        <div className="detail-box">
-          <span>Status</span>
-          <strong>{selectedRequest.status}</strong>
-        </div>
-      </div>
+            <div className="details-grid">
+              <div className="detail-box">
+                <span>Category</span>
+                <strong>
+                  {selectedRequest.type}
+                </strong>
+              </div>
 
-      <div className="detail-section">
-        <span className="detail-label">
-          Recommended Action
-        </span>
-        <p>
-          {selectedRequest.recommendedAction ||
-            "No recommended action"}
-        </p>
-      </div>
+              <div className="detail-box">
+                <span>Priority</span>
+                <strong>
+                  {selectedRequest.priority || "-"}
+                </strong>
+              </div>
 
-      {selectedRequest.reviewDecision && (
-        <div className="detail-section">
-          <span className="detail-label">
-            Review Decision
-          </span>
-          <p>{selectedRequest.reviewDecision}</p>
+              <div className="detail-box">
+                <span>AI Confidence</span>
+                <strong>
+                  {selectedRequest.confidence}%
+                </strong>
+              </div>
+
+              <div className="detail-box">
+                <span>Status</span>
+                <strong>
+                  {selectedRequest.status}
+                </strong>
+              </div>
+            </div>
+
+            <div className="detail-section">
+              <span className="detail-label">
+                Recommended Action
+              </span>
+
+              <p>
+                {selectedRequest.recommendedAction ||
+                  "No recommended action"}
+              </p>
+            </div>
+
+            {selectedRequest.reviewDecision && (
+              <div className="detail-section">
+                <span className="detail-label">
+                  Review Decision
+                </span>
+
+                <p>
+                  {selectedRequest.reviewDecision}
+                </p>
+              </div>
+            )}
+
+            <div className="detail-section">
+              <span className="detail-label">
+                Created At
+              </span>
+
+              <p>
+                {selectedRequest.createdAt
+                  ? new Date(
+                      selectedRequest.createdAt
+                    ).toLocaleString()
+                  : "-"}
+              </p>
+            </div>
+          </div>
         </div>
       )}
-
-      <div className="detail-section">
-        <span className="detail-label">Created At</span>
-        <p>
-          {selectedRequest.createdAt
-            ? new Date(
-                selectedRequest.createdAt
-              ).toLocaleString()
-            : "-"}
-        </p>
-      </div>
-    </div>
-  </div>
-)}
     </div>
   );
 }
