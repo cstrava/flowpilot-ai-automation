@@ -12,6 +12,8 @@ function App() {
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [typeFilter, setTypeFilter] = useState("All");
 
+  const [analysisResult, setAnalysisResult] = useState(null);
+
   const [stats, setStats] = useState({
     totalRequests: 0,
     autoProcessed: 0,
@@ -99,6 +101,7 @@ function App() {
     try {
       setIsSubmitting(true);
       setSubmitMessage("");
+      setAnalysisResult(null);
 
       const response = await fetch(
         "http://localhost:5000/api/requests",
@@ -119,23 +122,15 @@ function App() {
 
       const newRequest = await response.json();
 
-      setSubmitMessage(
-        `Request #${newRequest.id} created successfully.`
-      );
-
+      setAnalysisResult(newRequest);
       setDescription("");
 
       await loadDashboardData();
       await loadReviewRequests();
       await loadAuditLogs();
-
-      setTimeout(() => {
-        setCurrentPage("dashboard");
-        setSubmitMessage("");
-      }, 800);
     } catch (error) {
       console.error("Create request error:", error);
-      setSubmitMessage("Could not create request.");
+      setSubmitMessage("Could not analyze request.");
     } finally {
       setIsSubmitting(false);
     }
@@ -183,6 +178,12 @@ function App() {
     if (page === "audit") {
       await loadAuditLogs();
     }
+  };
+
+  const handleNewAnalysis = () => {
+    setAnalysisResult(null);
+    setSubmitMessage("");
+    setDescription("");
   };
 
   const formatTimestamp = (timestamp) => {
@@ -301,7 +302,10 @@ function App() {
 
               <button
                 className="primary-button"
-                onClick={() => openPage("new-request")}
+                onClick={() => {
+                  setAnalysisResult(null);
+                  openPage("new-request");
+                }}
               >
                 + New Request
               </button>
@@ -456,13 +460,10 @@ function App() {
                             }
                           >
                             <td>#{request.id}</td>
-
                             <td>{request.type}</td>
-
                             <td>
                               {request.priority || "-"}
                             </td>
-
                             <td>
                               {request.confidence}%
                             </td>
@@ -534,55 +535,200 @@ function App() {
               </div>
             </header>
 
-            <section className="request-form-card">
-              <form onSubmit={handleCreateRequest}>
-                <label htmlFor="description">
-                  Request description
-                </label>
+            {!analysisResult ? (
+              <section className="request-form-card">
+                <form onSubmit={handleCreateRequest}>
+                  <label htmlFor="description">
+                    Request description
+                  </label>
 
-                <textarea
-                  id="description"
-                  value={description}
-                  onChange={(event) =>
-                    setDescription(event.target.value)
-                  }
-                  placeholder="Example: Customer requests a refund for invoice INV-2026-421 because the delivered product was damaged."
-                  rows="8"
-                />
+                  <textarea
+                    id="description"
+                    value={description}
+                    onChange={(event) =>
+                      setDescription(event.target.value)
+                    }
+                    placeholder="Example: Customer requests a refund for invoice INV-2026-421 because the delivered product was damaged."
+                    rows="8"
+                  />
 
-                <div className="form-help">
-                  FlowPilot will analyze the request, classify it
-                  and decide whether it can be processed
-                  automatically or requires human validation.
+                  <div className="form-help">
+                    FlowPilot will analyze the request, classify it
+                    and decide whether it can be processed
+                    automatically or requires human validation.
+                  </div>
+
+                  {submitMessage && (
+                    <div className="submit-message">
+                      {submitMessage}
+                    </div>
+                  )}
+
+                  <div className="form-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => openPage("dashboard")}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="submit"
+                      className="primary-button"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting
+                        ? "Analyzing..."
+                        : "Analyze Request"}
+                    </button>
+                  </div>
+                </form>
+              </section>
+            ) : (
+              <section className="analysis-result-card">
+                <div className="analysis-result-header">
+                  <div>
+                    <span className="analysis-label">
+                      AI ANALYSIS COMPLETE
+                    </span>
+
+                    <h2>
+                      Request #{analysisResult.id}
+                    </h2>
+
+                    <p>
+                      FlowPilot analyzed the request and selected
+                      the appropriate processing route.
+                    </p>
+                  </div>
+
+                  <span
+                    className={`status ${
+                      analysisResult.status === "Completed"
+                        ? "completed"
+                        : analysisResult.status === "Rejected"
+                        ? "rejected"
+                        : "review"
+                    }`}
+                  >
+                    {analysisResult.status}
+                  </span>
                 </div>
 
-                {submitMessage && (
-                  <div className="submit-message">
-                    {submitMessage}
+                <div className="analysis-details-grid">
+                  <div className="analysis-detail">
+                    <span>Category</span>
+                    <strong>{analysisResult.type}</strong>
                   </div>
-                )}
 
-                <div className="form-actions">
+                  <div className="analysis-detail">
+                    <span>Priority</span>
+                    <strong>
+                      {analysisResult.priority}
+                    </strong>
+                  </div>
+
+                  <div className="analysis-detail">
+                    <span>Confidence</span>
+                    <strong>
+                      {analysisResult.confidence}%
+                    </strong>
+                  </div>
+
+                  <div className="analysis-detail">
+                    <span>Routing Decision</span>
+                    <strong>
+                      {analysisResult.status === "Completed"
+                        ? "Automatic Processing"
+                        : "Human Validation"}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="analysis-confidence">
+                  <div className="confidence-heading">
+                    <span>AI Confidence</span>
+                    <strong>
+                      {analysisResult.confidence}%
+                    </strong>
+                  </div>
+
+                  <div className="confidence-bar">
+                    <div
+                      className="confidence-bar-value"
+                      style={{
+                        width: `${analysisResult.confidence}%`,
+                      }}
+                    ></div>
+                  </div>
+
+                  <small>
+                    Requests with at least 85% confidence are
+                    automatically completed.
+                  </small>
+                </div>
+
+                <div className="analysis-section">
+                  <span>Recommended Action</span>
+
+                  <p>
+                    {analysisResult.recommendedAction ||
+                      "No recommended action available."}
+                  </p>
+                </div>
+
+                <div className="analysis-route-message">
+                  {analysisResult.status === "Completed" ? (
+                    <>
+                      <strong>
+                        Automatically processed
+                      </strong>
+                      <p>
+                        Confidence met the automation threshold, so
+                        no human intervention is required.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <strong>
+                        Human review required
+                      </strong>
+                      <p>
+                        Confidence was below the automation
+                        threshold. The request has been added to
+                        the Validation Queue.
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <div className="analysis-actions">
                   <button
-                    type="button"
                     className="secondary-button"
+                    onClick={handleNewAnalysis}
+                  >
+                    Analyze Another Request
+                  </button>
+
+                  {analysisResult.status === "Human Review" && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => openPage("validation")}
+                    >
+                      Open Validation Queue
+                    </button>
+                  )}
+
+                  <button
+                    className="primary-button"
                     onClick={() => openPage("dashboard")}
                   >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="primary-button"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting
-                      ? "Processing..."
-                      : "Analyze Request"}
+                    View Dashboard
                   </button>
                 </div>
-              </form>
-            </section>
+              </section>
+            )}
           </>
         )}
 
